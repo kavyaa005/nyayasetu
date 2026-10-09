@@ -1,0 +1,8 @@
+pydantic
+pdfplumber
+pypdf
+requests
+python-dotenv
+tqdm
+pytest
+ipykernel

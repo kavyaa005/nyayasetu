@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Secrets
+.env
+
+# Data (re-downloadable via scripts)
+data/raw/*
+!data/raw/.gitkeep
+
+# Models & large artifacts
+models/
+*.safetensors
+*.bin
+*.gguf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
