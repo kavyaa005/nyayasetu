@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: nyayasetu
+Version: 0.1.0
+Summary: Citation-grounded RAG assistant for India's new criminal laws
+Requires-Python: >=3.11

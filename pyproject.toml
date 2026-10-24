@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nyayasetu"
+version = "0.1.0"
+description = "Citation-grounded RAG assistant for India's new criminal laws"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+src/nyayasetu/__init__.py
+src/nyayasetu.egg-info/PKG-INFO
+src/nyayasetu.egg-info/SOURCES.txt
+src/nyayasetu.egg-info/dependency_links.txt
+src/nyayasetu.egg-info/top_level.txt
+src/nyayasetu/api/__init__.py
+src/nyayasetu/evaluation/__init__.py
+src/nyayasetu/generation/__init__.py
+src/nyayasetu/ingestion/__init__.py
+src/nyayasetu/retrieval/__init__.py
