@@ -28,8 +28,9 @@ END_RE = re.compile(
     r"|^DR\.\s+[A-Z]"
     r"|^[\u2014\u2013-]{4,}$"
 )
-TITLE_MAX_DY = 60     # a title must be within this many points of its section's first line
-CENTRED_OFFSET = 80   # a line starting this far right of the page's text edge is centred
+TITLE_MAX_DY = 60          # a title must be within this many points of its section's first line
+HEADING_MIN_OFFSET = 30    # headings start further right than paragraph indents (24pt)
+HEADING_LOOKAHEAD = 2      # a heading is followed by its section within this many body lines
 
 
 @dataclass
@@ -52,9 +53,35 @@ def _page_base(page: int) -> float:
     return 118 if page % 2 == 0 else 142
 
 
+def _section_starts_soon(seq: list[Line], idx: int, expected: int) -> bool:
+    """True if the next expected section starts within the next few body lines."""
+    seen = 0
+    for nxt in seq[idx + 1:]:
+        if nxt.kind != "body":
+            continue
+        m = SECTION_RE.match(nxt.text)
+        if m and int(m.group(1)) == expected:
+            return True
+        seen += 1
+        if seen >= HEADING_LOOKAHEAD:
+            return False
+    return False
+
+
+def _is_heading(seq: list[Line], idx: int, expected: int) -> bool:
+    ln = seq[idx]
+    text = ln.text
+    if ln.x0 - _page_base(ln.page) <= HEADING_MIN_OFFSET:
+        return False
+    if not text[:1].isupper() or PARA_RE.match(text) or text.startswith("Illustration"):
+        return False
+    return _section_starts_soon(seq, idx, expected)
+
+
 def parse_sections(name: str, lines: list[Line]) -> tuple[list[Section], list[str]]:
     issues: list[str] = []
     start = next(i for i, ln in enumerate(lines) if ln.kind == "body" and CHAPTER_RE.match(ln.text))
+    seq = lines[start:]
 
     sections: list[Section] = []
     notes: list[Line] = []       # margin notes that may be section titles
@@ -62,8 +89,9 @@ def parse_sections(name: str, lines: list[Line]) -> tuple[list[Section], list[st
     expected = 1
     chapter = chapter_title = heading = None
     reading_chapter_title = False
+    prev_was_heading = False
 
-    for ln in lines[start:]:
+    for idx, ln in enumerate(seq):
         text = ln.text
 
         # Margin notes: Act references go to the current section; the rest are title candidates.
@@ -82,6 +110,7 @@ def parse_sections(name: str, lines: list[Line]) -> tuple[list[Section], list[st
         if m:
             chapter, chapter_title, heading = m.group(1), "", None
             reading_chapter_title = True
+            prev_was_heading = False
             continue
         if reading_chapter_title and text.isupper():
             chapter_title = f"{chapter_title} {text}".strip()
@@ -100,16 +129,18 @@ def parse_sections(name: str, lines: list[Line]) -> tuple[list[Section], list[st
             )
             sections.append(current)
             expected += 1
+            prev_was_heading = False
             continue
         if m and int(m.group(1)) > expected:
             issues.append(f"p{ln.page}: saw '{m.group(1)}.' while expecting {expected}: {text[:70]}")
 
-        if current is None:
+        if _is_heading(seq, idx, expected):
+            heading = f"{heading} {text}" if prev_was_heading else text
+            prev_was_heading = True
             continue
+        prev_was_heading = False
 
-        is_centred = ln.x0 - _page_base(ln.page) > CENTRED_OFFSET
-        if is_centred and not text.startswith("Illustration"):
-            heading = text     # a sub-heading applies to the sections that follow it
+        if current is None:
             continue
 
         separator = "\n" if PARA_RE.match(text) else " "
@@ -134,9 +165,9 @@ def _attach_titles(sections: list[Section], notes: list[Line]) -> None:
         if best is not None:
             used.add(best)
             s.title = notes[best].text
-    unused = [n for j, n in enumerate(notes) if j not in used]
-    for n in unused:
-        n.kind = "unused_note"    # marked so the report can list them
+    for j, n in enumerate(notes):
+        if j not in used:
+            n.kind = "unused_note"    # marked so the report can list them
 
 
 def write_outputs(name: str, sections: list[Section], issues: list[str], notes_unused: list[Line]) -> None:
@@ -167,8 +198,9 @@ def main() -> None:
         expected = EXPECTED_SECTIONS.get(name)
         status = "PASS" if len(sections) == expected else "CHECK"
         no_title = sum(1 for s in sections if not s.title)
+        n_headings = len({s.heading for s in sections if s.heading})
         print(
-            f"[{status}] {name}: {len(sections)}/{expected} sections, "
+            f"[{status}] {name}: {len(sections)}/{expected} sections, {n_headings} sub-headings, "
             f"{no_title} without title, {len(issues)} sequence warnings, {len(unused)} unused notes"
             f" -> {Path(INTERIM_DIR / f'{name}_report.txt').relative_to(PROJECT_ROOT)}"
         )

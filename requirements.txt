@@ -6,3 +6,4 @@ python-dotenv
 tqdm
 pytest
 ipykernel
+openai

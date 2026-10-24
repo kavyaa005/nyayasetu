@@ -78,3 +78,17 @@ def test_no_gazette_artifacts_in_text(records):
     for r in records:
         for artifact in GAZETTE_ARTIFACTS:
             assert artifact not in r["text"], f"{r['id']} contains '{artifact}'"
+
+
+# ---- Regression tests for the sub-heading bug (found 2026-10-24) -----------
+
+def test_bns_320_has_its_own_heading(records):
+    record = next(r for r in records if r["id"] == "BNS-320")
+    assert record["heading"] == "Of fraudulent deeds and dispositions of property"
+
+
+def test_no_heading_leaked_into_section_text(records):
+    import re
+    leak = re.compile(r"[.;:]\s+Of [a-z][a-z ,-]+$")
+    leaked = [r["id"] for r in records if leak.search(r["text"])]
+    assert leaked == [], f"sections ending with a leaked sub-heading: {leaked}"
