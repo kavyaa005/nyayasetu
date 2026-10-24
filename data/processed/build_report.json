@@ -1,0 +1,21 @@
+{
+  "built_at": "2026-10-24T11:11:16+00:00",
+  "total_sections": 1059,
+  "acts": {
+    "bns": {
+      "sections": 358,
+      "source": "prs_gazette",
+      "sequence_warnings": 0
+    },
+    "bnss": {
+      "sections": 531,
+      "source": "prs_gazette",
+      "sequence_warnings": 0
+    },
+    "bsa": {
+      "sections": 170,
+      "source": "prs_gazette",
+      "sequence_warnings": 0
+    }
+  }
+}
