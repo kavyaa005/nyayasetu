@@ -2,7 +2,7 @@
 
 > **This file is the project's source of truth.** Read it before every major step. Update it whenever architecture, status, decisions, experiments, or learning progress change.
 
-_Last updated: 2026-10-12 · Phase 0 (Setup) nearly complete_
+_Last updated: 2026-10-24 · Phase 1 (Data pipeline) complete · Phase 2 next_
 
 ---
 
@@ -157,9 +157,9 @@ _Tentative. Final choices are recorded in **Architecture Decisions** as we make 
 
 ## Data Pipeline
 
-1. **Sources:** BNS, BNSS, BSA, IPC, CrPC and IEA bare acts (India Code, public); official IPC↔BNS / CrPC↔BNSS / IEA↔BSA correspondence tables (exact source to verify in Phase 1).
-2. **Parse:** PDF → text → split by Chapter / Section / Sub-section / Explanation / Illustration / Proviso.
-3. **Structure:** each unit becomes a record `{act, chapter, section_no, title, text, parts[], old_equivalents[]}`, validated with Pydantic.
+1. **Sources:** BNS, BNSS and BSA (Gazette text via PRS India, with India Code as the preferred source when reachable; see ADR-7, ADR-9). Old↔new correspondence tables come in Phase 5.
+2. **Parse:** PDF → positioned words → body lines + margin notes (layout.py) → sections via a sequence-checked state machine (sections.py). Paragraph breaks are kept at (1)/(a)/Explanation/Illustration/Exception/Provided.
+3. **Structure:** each section becomes a `SectionRecord` `{id, act, number, title, chapter, chapter_title, heading, text, page_start, page_end, act_refs, source}`, validated with Pydantic (`schema.py`).
 4. **Quality checks:** section counts match the official acts; no empty or duplicate sections; spot-check by hand.
 5. **Store:** JSONL (source of truth) → BM25 index + Qdrant collection.
 6. **Eval data:** a hand-written gold set of 150–300 questions, each labelled with correct section(s) and including out-of-scope and trick questions.
@@ -232,6 +232,7 @@ Chunking strategies to compare: fixed-size tokens · whole section · section wi
 
 Each concept is learned when its phase needs it. Status: ⬜ not yet · 🟨 in progress · ✅ understood + implemented
 
+- ✅ Data pipelines: PDF text extraction, layout analysis by coordinates, regex, state-machine parsing, validation with schemas, automated tests, provenance (Phase 1)
 - ⬜ What an LLM is / next-token prediction (Phase 2)
 - ⬜ Tokens and tokenization (Phase 2)
 - ⬜ Prompting and system prompts (Phase 2)
@@ -262,10 +263,41 @@ Each concept is learned when its phase needs it. Status: ⬜ not yet · 🟨 in 
 
 - ✅ Project selection (NyayaSetu chosen over 5 alternatives: best concept coverage with genuine need, public data, measurable hallucination story)
 - ✅ `plan.md` created
+- ✅ Phase 0: environment, repo skeleton, GitHub (2026-10-12)
+- ✅ **Phase 1: data pipeline (2026-10-24).** Official PDFs → layout-aware extraction → section parser → Pydantic-validated dataset of **1,059 sections** (`data/processed/sections.jsonl`) with stable IDs (`BNS-103`), titles, chapters, sub-headings, page ranges, Act cross-references and provenance; **17/17 pytest checks pass**. Details below.
 
-## Current Component
+### Phase 1 — Data pipeline ✅ Complete (2026-10-24)
 
-**Phase 0 — Environment setup and repository skeleton.** 🟨 In progress
+Code: `ingestion/download.py` → `ingestion/layout.py` → `ingestion/sections.py` → `ingestion/build.py` (+ `schema.py`, `tests/test_sections.py`, `scripts/probe_layout.py`, `scripts/check_sections.py`). Rebuild everything: `python -m nyayasetu.ingestion.download; python -m nyayasetu.ingestion.build; pytest -v`.
+
+Data sources. The downloader tries them in order and records which one was used in `data/raw/sources.json`:
+| Act | Local file | Primary: India Code (consolidated, updated) | Fallback: PRS India (Gazette text as enacted, Dec 2023) |
+|---|---|---|---|
+| BNS 2023 (Act 45) | `data/raw/bns.pdf` | https://www.indiacode.nic.in/bitstream/123456789/20062/1/a202345.pdf | https://prsindia.org/files/bills_acts/bills_parliament/2023/The%20Bharatiya%20Nyaya%20Sanhita,%202023.pdf |
+| BNSS 2023 (Act 46) | `data/raw/bnss.pdf` | https://indiacode.nic.in/bitstream/123456789/20099/3/A2023-46.pdf | https://prsindia.org/files/bills_acts/bills_parliament/2023/The%20Bharatiya%20Nagarik%20Suraksha%20Sanhita,%202023.pdf |
+| BSA 2023 (Act 47) | `data/raw/bsa.pdf` | https://www.indiacode.nic.in/bitstream/123456789/20063/1/aa202347.pdf | https://prsindia.org/files/bills_acts/acts_parliament/2023/The%20Bharatiya%20Sakshya%20Bill,%202023.pdf |
+
+- ✅ 2026-10-24: all three acts downloaded via fallback from `prs_gazette` (BNS 1.4 MB, BNSS 2.0 MB, BSA 1.2 MB); India Code failed with RetryError for all three. **Corpus version = Gazette text as enacted, 25 Dec 2023.** Re-check India Code later for the consolidated version.
+- ✅ Inspected raw text + measured layout with `scripts/probe_layout.py` (BNS pp. 3–4, A4 595×842 pt):
+  - Running header at y≈64–68 → drop everything above y=75.
+  - Body column x≈142–478. Indentation encodes structure: x≈166 = new paragraph/clause start, x≈142 = continuation line, x≈190 = nested item.
+  - Margin notes outside the body column, on either side: x<135 (left) or x>485 (right). Two kinds: **section titles** ("Definitions.") and **cross-references to other Acts** ("40 of 2019.").
+- ✅ Phase 1.2a: `layout.py` splits pages into body lines + margin notes → `data/interim/<act>_layout.txt` for inspection
+  - v1 (fixed-x crop) chopped words in half ("Se|arate") → v2 classifies whole gap-separated segments.
+  - v2 review (pp. 2, 10, 50): titles mostly perfect, header removed. Found: (a) **odd/even pages are offset by 24pt** (body starts x≈142 on odd pages, x≈118 on even), and on even pages the margin sits so close to the body that margin words merged into body lines (s.162); (b) two adjacent titles glued into one note (ss.165+166).
+  - v3: classify each **word** by x0 (left margin if x0 < 114, right if x0 > 485); end a margin note at a line ending in "."; titles may sit above, beside or below their section's first line, so attach by vertical proximity in 1.2b.
+  - ✅ v3 verified 2026-10-24: page 50 clean (ss.162–170 each with own title; "45 of 1950." etc. split); no body line starts in the margin zone anywhere in BNS.
+- ✅ Phase 1.2b: `sections.py`, a line-by-line state machine: start at "CHAPTER I"; track chapter, chapter title, centred sub-headings; start a new section only when the number is exactly the next expected one; attach titles by nearest vertical distance (≤60pt, same page); act references ("45 of 1950") stored separately; stop at the signature block or Schedules.
+  - Acceptance test: section counts must equal the known totals: **BNS 358, BNSS 531, BSA 170**.
+  - Schedules (e.g. BNSS First Schedule, the offence classification table) are out of scope for now → Future Improvements.
+  - ✅ First run 2026-10-24: **BNS 358/358, BNSS 531/531, BSA 170/170**; 0 sections without title, 0 sequence warnings, 0 unused margin notes.
+  - ✅ Spot-check 2026-10-24 (`scripts/check_sections.py`): all 7 known titles correct (BNS 103/318/358, BNSS 35/531, BSA 63/170); last section of each act ends cleanly (no signature or Schedule leakage); shortest sections are genuinely short (e.g. BNS 20, child under seven); longest are definitions/long provisions. Minor: missing spaces "(2)When"; duplicate act refs (BSA 170); BNSS 359 (compounding) is long and probably contains a table → check.
+- ✅ Phase 1.3: Pydantic schema (`schema.py`), normalisation + build (`build.py`) → `data/processed/sections.jsonl` + `build_report.json`; pytest suite (`tests/test_sections.py`).
+  - ✅ Build 2026-10-24: 1,059 validated records (BNS 358 + BNSS 531 + BSA 170, source `prs_gazette`), committed and pushed.
+  - ✅ `pytest -v` 2026-10-24: **17 passed in 0.55s** (unit tests for regex/normalisation; counts, contiguity, unique IDs, 7 known titles, schema, no Gazette artefacts).
+- ➡️ Phase 1.4 (old↔new correspondence tables) moved to Phase 5, where the `section_mapper` tool needs it (ADR-11).
+
+### Phase 0 — Environment setup ✅ Complete (2026-10-12)
 
 Dev machine: Windows + PowerShell, Python 3.12.10 in `.venv` (installed via `py install 3.12` alongside system 3.14), git, GitHub.
 
@@ -286,10 +318,15 @@ nyayasetu/
 ├── plan.md  README.md  requirements.txt  .gitignore  .env.example
 ```
 
+## Current Component
+
+**Phase 2 — Gold evaluation set + no-RAG baseline (Experiment E1).** ⬜ Not started. Waiting on: laptop RAM/GPU, and free-only vs small API budget.
+
 ## Next Components
 
-1. Phase 0: commit `plan.md` to the repo (last Phase 0 task)
-2. Phase 1: Download the six acts + mapping tables; build the parser; produce `data/processed/sections.jsonl`
+1. Phase 2.1: choose the LLM setup (local vs hosted API) based on hardware and budget
+2. Phase 2.2: build the gold question set (questions → correct section IDs, plus out-of-scope/trick questions)
+3. Phase 2.3: ask an LLM *without* our data; measure citation accuracy and hallucination (E1)
 
 ## Architecture Decisions
 
@@ -301,6 +338,11 @@ nyayasetu/
 | ADR-4 | 2026-10-06 | Build the eval set **before** RAG | Can't claim improvement without a baseline | Build first, evaluate later |
 | ADR-5 | 2026-10-06 | `src/` package layout + per-project venv; raw data git-ignored and re-downloadable by script | Clean imports, reproducible, small repo | Flat scripts; committing PDFs |
 | ADR-6 | 2026-10-06 | Python 3.11–3.12 | Best compatibility with ML libraries (PyTorch, bitsandbytes, vLLM) | Newest Python (libraries lag) |
+| ADR-7 | 2026-10-12 | Phase 1 corpus = the 3 new acts only, from India Code; old acts (IPC/CrPC/IEA) handled through correspondence tables, not full text | The new acts are what users need answered; tables cover old↔new mapping; smaller scope gets us to RAG sooner | Parse all 6 acts now |
+| ADR-8 | 2026-10-12 | Install the project as an editable package (`pyproject.toml` + `pip install -e .`) | Clean `import nyayasetu...` from anywhere; standard practice | `PYTHONPATH` hacks |
+| ADR-9 | 2026-10-24 | Multiple sources per act with automatic fallback (India Code → PRS India), plus a `sources.json` provenance manifest | India Code was unreachable for both scripts and browsers; PRS hosts the official Gazette text. The manifest records which version we parsed, which matters because PRS has the as-enacted text while India Code is consolidated with later amendments | Wait for India Code; unofficial bare-act sites |
+| ADR-10 | 2026-10-24 | Commit `data/processed/sections.jsonl` to git (raw PDFs stay ignored); stable IDs like `BNS-103` | Small (~2 MB), lets tests and demos run on a fresh clone without re-downloading; stable IDs are what citations will point to | Regenerate everywhere |
+| ADR-11 | 2026-10-24 | Defer old↔new correspondence tables to Phase 5 | Only the `section_mapper` tool needs them; doing them now delays the first AI work. India Code is also currently unreachable | Finish 1.4 now |
 
 ## Experiments
 
@@ -322,15 +364,19 @@ _No results yet. Only measured numbers go here, each with script name, config an
 
 ## Known Problems
 
+- India Code returned repeated 504 Gateway Time-outs to the scripted downloader on 2026-10-12 and 2026-10-24, even with 5 retries and backoff (`indiacode.nic.in` also redirects to `www.`). Workaround: download the PDFs manually in a browser into `data/raw/`; the script's skip-if-exists logic then verifies they're present.
 - Bare-act PDFs may have inconsistent formatting; the parser will need iteration.
+- Gazette PDF quirks found in Phase 1.1: (1) front matter before "CHAPTER I" isn't law; (2) Hindi in legacy (Kruti Dev-style) fonts extracts as Latin gibberish; (3) running page header with the page number glued in ("IND2IA"); (4) margin notes (section titles) get interleaved into body lines by plain text extraction; (5) missing spaces ("(5)The", "2.In"); (6) numbered definition lists "(1)…" inside sections can be mistaken for structure. Defence: position-based column splitting + section-number sequence check.
 - The official correspondence tables may not be one-to-one (some old sections split or merge).
 - Free GPU sessions are time-limited, so training must checkpoint.
+- **Tables inside sections are flattened by text extraction.** E.g. BNSS 359 (compounding of offences) has a 3-column table (Offence | BNS section | Person by whom it may be compounded); multi-line cells from different columns get interleaved ("Enticing or taking away or 84 The husband of the woman detaining with criminal…"). Retrieval may still find the section, but an LLM can misread which offence maps to which section/person. Planned fix: extract these tables with pdfplumber's table extraction into structured data, exposed as a lookup tool (like `section_mapper`).
 - LLM-as-judge can be biased; it must be calibrated against human labels.
 
 ## Future Improvements
 
 - Case-law retrieval (Supreme Court / High Court judgments)
 - Hindi query support
+- Parse the Schedules, especially the BNSS First Schedule (classification of offences: cognizable/bailable/triable by), which is a table and needs table extraction
 - Amendment tracking / versioned statutes
 - Feedback loop: thumbs up/down → new eval data
 
