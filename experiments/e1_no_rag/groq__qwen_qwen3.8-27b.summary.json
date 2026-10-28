@@ -1,26 +1,50 @@
 {
   "all": {
-    "questions": 0,
-    "correct_citation_rate": "n/a",
-    "citation_precision": "n/a",
-    "fabricated_citation_rate": "n/a",
-    "abstention_accuracy": "n/a",
-    "format_compliance": "n/a"
+    "questions": 69,
+    "correct_citation_rate": "8/60 (13.3%)",
+    "citation_precision": "8/80 (10.0%)",
+    "fabricated_citation_rate": "2/82 (2.4%)",
+    "abstention_accuracy": "7/9 (77.8%)",
+    "format_compliance": "69/69 (100.0%)"
   },
   "dev": {
-    "questions": 0,
-    "correct_citation_rate": "n/a",
-    "citation_precision": "n/a",
-    "fabricated_citation_rate": "n/a",
-    "abstention_accuracy": "n/a",
-    "format_compliance": "n/a"
+    "questions": 26,
+    "correct_citation_rate": "4/23 (17.4%)",
+    "citation_precision": "4/37 (10.8%)",
+    "fabricated_citation_rate": "1/38 (2.6%)",
+    "abstention_accuracy": "2/3 (66.7%)",
+    "format_compliance": "26/26 (100.0%)"
   },
   "test": {
-    "questions": 0,
-    "correct_citation_rate": "n/a",
+    "questions": 43,
+    "correct_citation_rate": "4/37 (10.8%)",
+    "citation_precision": "4/43 (9.3%)",
+    "fabricated_citation_rate": "1/44 (2.3%)",
+    "abstention_accuracy": "5/6 (83.3%)",
+    "format_compliance": "43/43 (100.0%)"
+  },
+  "origin=handwritten_user": {
+    "questions": 5,
+    "correct_citation_rate": "0/2 (0.0%)",
     "citation_precision": "n/a",
     "fabricated_citation_rate": "n/a",
+    "abstention_accuracy": "3/3 (100.0%)",
+    "format_compliance": "5/5 (100.0%)"
+  },
+  "origin=seed_assistant": {
+    "questions": 26,
+    "correct_citation_rate": "7/20 (35.0%)",
+    "citation_precision": "7/33 (21.2%)",
+    "fabricated_citation_rate": "2/35 (5.7%)",
+    "abstention_accuracy": "4/6 (66.7%)",
+    "format_compliance": "26/26 (100.0%)"
+  },
+  "origin=synthetic_llm": {
+    "questions": 38,
+    "correct_citation_rate": "1/38 (2.6%)",
+    "citation_precision": "1/47 (2.1%)",
+    "fabricated_citation_rate": "0/47 (0.0%)",
     "abstention_accuracy": "n/a",
-    "format_compliance": "n/a"
+    "format_compliance": "38/38 (100.0%)"
   }
 }
