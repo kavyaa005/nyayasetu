@@ -1,0 +1,26 @@
+{
+  "all": {
+    "questions": 0,
+    "correct_citation_rate": "n/a",
+    "citation_precision": "n/a",
+    "fabricated_citation_rate": "n/a",
+    "abstention_accuracy": "n/a",
+    "format_compliance": "n/a"
+  },
+  "dev": {
+    "questions": 0,
+    "correct_citation_rate": "n/a",
+    "citation_precision": "n/a",
+    "fabricated_citation_rate": "n/a",
+    "abstention_accuracy": "n/a",
+    "format_compliance": "n/a"
+  },
+  "test": {
+    "questions": 0,
+    "correct_citation_rate": "n/a",
+    "citation_precision": "n/a",
+    "fabricated_citation_rate": "n/a",
+    "abstention_accuracy": "n/a",
+    "format_compliance": "n/a"
+  }
+}
